@@ -1,6 +1,7 @@
 # 파일 설명
 classification.py : 재난문자 분류 클래스
 
+->일단 임시방편으로 find_subject에 test_text_subject 써서 처리 해둠. 추후 보완을 거쳐야 함. 
 
 test_text_subject.py : 주제 추출 코드 실험
 
