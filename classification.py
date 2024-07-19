@@ -3,9 +3,16 @@ import pandas as pd
 import tensorflow as tf 
 from konlpy.tag import Okt
 from keybert import KeyBERT
+from test_text_subject import extract_topics #test_text_subject.py에서 extraact_topics import 
 
 
-importance_map = {} #주제 : 중요도(정수형으로 저장) -> 논의 후 작성 
+importance_map = {} #주제 : 중요도(정수형으로 저장) 
+#중요도 논의 방법 
+'''
+1. 설문조사 : 설문조사 돌려서 학생들 인식대로
+2. 국가적/국제적 지표 
+3. 
+'''
 
 
 class Jaenan_moonja() : 
@@ -23,9 +30,12 @@ class Jaenan_moonja() :
         '''
         자연어 처리를 통한 주제 찾기 method 
         return은 없습니다. 
-        subject를 업데이트합니다. 
+        
+        ### 고민 ###
+        self.subject를 바로 업데이트 가능한데 subject가 필요할까?
         '''
-        pass #일시적으로 pass 처리 
+        self.subject= extract_topics(self.text)
+         
         
     def sebject_of_message(self) : 
         return self.subject #return subject
@@ -40,12 +50,6 @@ class Jaenan_moonja() :
         if importance >= std_level : 
             return '아주 큰 재난'
         else : return '별거 아닌듯?' 
-    
-
-    
-
-    
-
     
 
     
