@@ -1,6 +1,9 @@
 import numpy as np 
 import pandas as pd
 import tensorflow as tf 
+from konlpy.tag import Okt
+from keybert import KeyBERT
+
 
 importance_map = {} #주제 : 중요도(정수형으로 저장) -> 논의 후 작성 
 
@@ -37,6 +40,12 @@ class Jaenan_moonja() :
         if importance >= std_level : 
             return '아주 큰 재난'
         else : return '별거 아닌듯?' 
+    
+
+    
+
+    
+
     
 
     
