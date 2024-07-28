@@ -1,0 +1,184 @@
+from bs4 import BeautifulSoup
+import requests
+import pandas as pd
+from konlpy.tag import Okt
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+import numpy as np
+from transformers import BertTokenizer, TFBertForSequenceClassification
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.cluster import KMeans
+from transformers import BertTokenizer, TFBertModel
+import tensorflow as tf
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
+import os
+import torch
+from transformers import BertModel, BertTokenizer
+
+
+okt=Okt()
+vectorizer=TfidfVectorizer()
+
+url="https://www.safetydata.go.kr/disaster-data/disasterNotification?searchStartDttm=&searchEndDttm=&keyword=&orderBy=&currentPage=1&cntPerPage=12000&pageSize=12000"
+
+response=requests.get(url)
+
+if response.status_code == 200:
+    file_path = "disaster_message.html"
+
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.write(response.text)
+
+    print(f"HTML content has been downloaded and saved to {file_path}.")
+else:
+    print(f"Failed to retrieve the page. Status code: {response.status_code}")
+
+filename="disaster_message.html"
+html=""
+with open (filename, 'r', encoding='UTF-8') as file:
+    for line in file:
+        html+=line
+
+soup=BeautifulSoup(html,'lxml')
+
+rows=soup.find_all('tr')
+data_list=[]
+
+for row in rows:
+    cols=row.find_all('td')
+    cols=[ele.text.strip() for ele in cols]
+    data_list.append(cols)
+
+df=pd.DataFrame(data_list, columns=['number','text','time'])
+
+pd.set_option('display.max_colwidth', None)
+pd.set_option('display.width', None)
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+
+df=df.drop(0)
+df=df.reset_index(drop=True)
+
+df=df.dropna()
+df = df.drop_duplicates()
+df['number']=pd.to_numeric(df['number'])
+df = df.sort_values(by='number', ascending=True)
+df = df.set_index('number')
+
+def extract_location(text):
+    if text is None:
+        return text, 'NaN'
+    start=text.rfind('[')
+    end=text.rfind(']')
+    if start!=-1 and end!=-1:
+        location=text[start+1:end]
+        text=text[:start]+text[end+1:]
+    else:
+        location='NaN'
+    return text.strip(), location
+
+df[['text', 'location']] = df['text'].apply(lambda x: pd.Series(extract_location(x)))
+
+pd.set_option('display.max_colwidth', None)
+
+print("Df has completed.")
+def preprocessing(text):
+    text=text.replace("△", "")
+    text=text.replace("\n","")
+    text=text.replace("N","")
+    tokens=okt.morphs(text, stem=True)
+    return ' '.join(tokens)
+
+df['text']=df['text'].apply(lambda x: preprocessing(x))
+
+print("preprocessing complete.")
+'''
+tokenizer = BertTokenizer.from_pretrained("monologg/kobert")
+model = TFBertModel.from_pretrained("monologg/kobert")
+
+def encode_texts(texts, tokenizer, max_length=128):
+    return tokenizer(texts.tolist(), max_length=max_length, truncation=True, padding=True, return_tensors='tf')
+
+encoded_texts = encode_texts(df['text'], tokenizer)
+outputs = model(encoded_texts['input_ids'])
+
+embeddings = outputs[1]
+
+print("training completed.")
+
+pca = PCA(n_components=2)
+principal_components = pca.fit_transform(embeddings.numpy())
+
+plt.scatter(principal_components[:, 0], principal_components[:, 1], c=df['risk_cluster'])
+plt.title('Clustering of Disaster Information Text')
+plt.xlabel('Principal Component 1')
+plt.ylabel('Principal Component 2')
+plt.show()
+'''
+
+'''
+tokenizer = BertTokenizer.from_pretrained("monologg/kobert")
+
+def encode_texts(texts, tokenizer, max_length=64):
+    return tokenizer(texts.tolist(), max_length=max_length, truncation=True, padding=True, return_tensors='tf')
+
+encoded_texts = encode_texts(df['text'], tokenizer, max_length=64)
+
+# Load pre-trained KoBERT model
+model = TFBertForSequenceClassification.from_pretrained("monologg/kobert")
+
+def get_embeddings(model, encoded_texts, batch_size=8):
+    embeddings = []
+    for i in range(0, len(encoded_texts['input_ids']), batch_size):
+        batch_input_ids = encoded_texts['input_ids'][i:i+batch_size]
+        batch_attention_mask = encoded_texts['attention_mask'][i:i+batch_size]
+        outputs = model.bert(input_ids=batch_input_ids, attention_mask=batch_attention_mask)
+        embeddings.append(outputs.last_hidden_state[:, 0, :])  # Use [CLS] token embeddings
+    return tf.concat(embeddings, axis=0)
+
+embeddings = get_embeddings(model, encoded_texts, batch_size=8)
+
+# Cluster the embeddings
+NUM_CLUSTERS = 5
+kmeans = KMeans(n_clusters=NUM_CLUSTERS, random_state=42)
+df['risk_cluster'] = kmeans.fit_predict(embeddings.numpy())
+
+# Output the resulting clusters
+print(df[['contents', 'risk_cluster']])
+'''
+
+tokenizer = BertTokenizer.from_pretrained("monologg/kobert")
+
+def encode_texts(texts, tokenizer, max_length=64):
+    return tokenizer(texts.tolist(), max_length=max_length, truncation=True, padding=True, return_tensors='pt')
+
+encoded_texts = encode_texts(df['text'], tokenizer, max_length=64)
+
+# Load pre-trained KoBERT model
+model = BertModel.from_pretrained("monologg/kobert")
+
+def get_embeddings(model, encoded_texts, batch_size=8):
+    model.eval()  # Set the model to evaluation mode
+    embeddings = []
+    with torch.no_grad():  # Disable gradient calculation
+        for i in range(0, len(encoded_texts['input_ids']), batch_size):
+            batch_input_ids = encoded_texts['input_ids'][i:i+batch_size]
+            batch_attention_mask = encoded_texts['attention_mask'][i:i+batch_size]
+            outputs = model(input_ids=batch_input_ids, attention_mask=batch_attention_mask)
+            embeddings.append(outputs.last_hidden_state[:, 0, :])  # Use [CLS] token embeddings
+    return torch.cat(embeddings, dim=0)
+
+embeddings = get_embeddings(model, encoded_texts, batch_size=8)
+
+# Cluster the embeddings
+NUM_CLUSTERS = 5
+kmeans = KMeans(n_clusters=NUM_CLUSTERS, random_state=42)
+df['risk_cluster'] = kmeans.fit_predict(embeddings.numpy())
+
+# Output the resulting clusters
+print(df[['text', 'risk_cluster']])
+
+
